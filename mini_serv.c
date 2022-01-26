@@ -6,6 +6,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#include <stdio.h>
+
 int extract_message(char **buf, char **msg)
 {
 	char	*newbuf;
@@ -70,32 +72,58 @@ int main(int ac, char **av)
 		exit(1);
 	}
 
-	int sockfd, connfd, len;
-	struct sockaddr_in servaddr, cli;
+	int sockfd;
+	struct sockaddr_in servaddr;
 
 	// socket create and verification
 	sockfd = socket(AF_INET, SOCK_STREAM, 0);
-	if (sockfd == -1) {
+	if (sockfd == -1)
 		exit_fatal();
-	bzero(&servaddr, sizeof(servaddr)); 
 
 	// assign IP, PORT
+	bzero(&servaddr, sizeof(servaddr)); 
 	servaddr.sin_family = AF_INET; 
 	servaddr.sin_addr.s_addr = htonl(2130706433); //127.0.0.1
 	servaddr.sin_port = htons(atoi(av[1])); 
   
 	// Binding newly created socket to given IP and verification
 	if ((bind(sockfd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
+	{
+		close(sockfd);
 		exit_fatal();
-	if (listen(sockfd, 10) != 0)
+	}
+	if (listen(sockfd, 10) != 0) // 10 is the value given in the main
 		exit_fatal();
 
-	len = sizeof(cli);
-	connfd = accept(sockfd, (struct sockaddr *)&cli, &len);
-	if (connfd < 0) { 
-		printf("server acccept failed...\n"); 
-		exit(0); 
-	} 
-	else
-		printf("server acccept the client...\n");
+	{
+		// int connfd;
+		// socklen_t len;
+		// struct sockaddr_in client;
+		// len = sizeof(client);
+		// connfd = accept(sockfd, (struct sockaddr *)&client, &len);
+		// if (connfd < 0) {
+		// 	// printf("server acccept failed...\n"); 
+		// } 
+		// else
+			// printf("server acccept the client...\n");
+
+
+		fd_set read_fds;
+		FD_ZERO(&read_fds);
+
+		while (1)
+		{
+			if (select(1024, &read_fds, 0, 0, 0))
+			{
+				printf("select : ");
+				exit_fatal();
+			}
+			for (int i = 0; i < 10; ++i)
+			{
+				printf(">>%d\n", i);
+
+			}			
+			// printf("server\n");
+		}
+	}
 }

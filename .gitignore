@@ -2,3 +2,5 @@ a.out
 a.out.dSYM/
 mark.c
 vinc.c
+charm.c
+.vscode/
