@@ -4,19 +4,12 @@
 #include <stdlib.h>
 #include <netdb.h>
 #include <sys/socket.h>
+#include <sys/select.h> // for linux
 #include <netinet/in.h>
 
 #include <stdio.h>
 
-typedef struct  s_client
-{
-	int id;
-	int fd;
-	struct s_client *next;
-} t_client;
-
-int server_fd, g_id = 0;
-t_client* clients = NULL;
+// given code
 
 int extract_message(char **buf, char **msg)
 {
@@ -67,6 +60,18 @@ char *str_join(char *buf, char *add)
 	return (newbuf);
 }
 
+// my code below
+
+typedef struct  s_client
+{
+	int id;
+	int fd;
+	struct s_client *next;
+} t_client;
+
+int server_fd, g_id = 0;
+t_client* clients = NULL;
+
 void exit_fatal()
 {
 	const char* s = "Fatal error\n";
@@ -92,7 +97,7 @@ int ft_send(int fd, char* buffer, int len)
 	}
 	return 0;
 }
-void send_all_clients(char *mess, fd_set *read_fds, int sender_fd)
+void broadcast_message(char *mess, fd_set *read_fds, int sender_fd)
 {
 	t_client* it = clients;
 	while(it)
@@ -125,54 +130,101 @@ void free_client(t_client *to_free)
 
 t_client* add_client()
 {
+	// struct sockaddr_in client_addr;
+	// socklen_t len = sizeof(client_addr);
 	int client_fd;
-	struct sockaddr_in client;
 	
-	client_fd = accept(server_fd, (struct sockaddr *)&client, (socklen_t*)sizeof(client));
+	client_fd = accept(server_fd, 0, 0);
 	if (client_fd < 0)
-		exit_fatal();
+		exit_fatal();	
 	t_client* new_client = malloc_client(client_fd);
 	if (!new_client)
 		exit_fatal();
 	t_client* it = clients;
-	while(it->next)
-		it = it->next;
-	it->next = new_client;
+	if (it)
+	{
+		while(it->next)
+			it = it->next;
+		it->next = new_client;
+	}
+	else
+		clients = new_client;
 	return new_client;
 }
 
+void remove_client(int id)
+{
+	t_client* tmp = 0;
+	t_client* it = clients;
+
+	while (it)
+	{
+		if (it->id == id)
+		{
+			if (tmp)
+				tmp->next = it->next;
+			else
+				clients = it->next;
+			free_client(it);
+			return;
+		}
+		tmp = it;
+		it = it->next;
+	}
+	printf("remove_client() -> client not found\n");
+	exit_fatal();
+}
 
 void run()
 {
 	char buffer[100];
-	fd_set read_fds;
-	FD_ZERO(&read_fds);
+	fd_set master_set, read_set;
+	FD_ZERO(&master_set);
+	FD_SET(server_fd, &master_set);
 
 	while (1)
 	{
-		if (select(1024, &read_fds, 0, 0, 0) < 0)
+		memcpy(&read_set, &master_set, sizeof(master_set));
+		if (select(1024, &read_set, 0, 0, 0) < 0)
 			exit_fatal();
-		printf("blabla\n");
-		if (FD_ISSET(server_fd, &read_fds))
+		if (FD_ISSET(server_fd, &read_set))
 		{
 			t_client *new_client = add_client();
-			printf("blabla\n");
 			sprintf(buffer, "server: client %d just arrived\n", new_client->id);
-			send_all_clients(buffer, &read_fds, new_client->fd);
+			broadcast_message(buffer, &master_set, new_client->fd);
+			FD_SET(new_client->fd, &master_set);
 		}
 		t_client *it = clients;
 		while (it)
 		{
-			if (FD_ISSET(it->fd, &read_fds))
+			if (FD_ISSET(it->fd, &read_set))
 			{
 				// mess = str_join(mess, )
+				char  buf[10];
+				int rc =  recv(it->fd,&buf, 9, 0);
+				if (rc == 0)
+				{
+					sprintf(buffer, "server: client %d just left\n", it->id);
+					broadcast_message(buffer, &master_set, it->fd);				
+					close(it->fd);
+					FD_CLR(it->fd, &master_set);
+					t_client *tmp = it->next;
+					remove_client(it->id);
+					it = tmp;
+					continue;
+				}
+				else if (rc > 0)
+				{
+					
+				}
+				else
+					exit_fatal();
 			}
 			it = it->next;
 		}
 		printf("server\n");
 	}
 }
-
 
 int main(int ac, char **av)
 {
