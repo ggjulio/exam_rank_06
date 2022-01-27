@@ -47,7 +47,7 @@ char *str_join(char *buf, char *add)
 	newbuf[0] = 0;
 	if (buf != 0)
 		strcat(newbuf, buf);
-	free(buf);
+	free(buf); // error here, must only be freed when buf not null.
 	strcat(newbuf, add);
 	return (newbuf);
 }
