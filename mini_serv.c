@@ -199,7 +199,6 @@ void run()
 		{
 			if (FD_ISSET(it->fd, &read_set))
 			{
-				// mess = str_join(mess, )
 				char  buf[10];
 				int rc =  recv(it->fd,&buf, 9, 0);
 				if (rc == 0)
