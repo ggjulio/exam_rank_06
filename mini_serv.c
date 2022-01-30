@@ -132,8 +132,6 @@ void free_client(t_client *to_free)
 
 t_client* add_client()
 {
-	// struct sockaddr_in client_addr;
-	// socklen_t len = sizeof(client_addr);
 	int client_fd;
 	
 	client_fd = accept(server_fd, 0, 0);
