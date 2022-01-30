@@ -66,6 +66,7 @@ typedef struct  s_client
 {
 	int id;
 	int fd;
+	char *data;
 	struct s_client *next;
 } t_client;
 
@@ -97,14 +98,12 @@ int ft_send(int fd, char* buffer, int len)
 	}
 	return 0;
 }
-void broadcast_message(char *mess, fd_set *read_fds, int sender_fd)
+void broadcast_message(char *mess, fd_set *master_fds, int sender_fd)
 {
 	t_client* it = clients;
 	while(it)
 	{
-		(void)sender_fd;
-		// if (it->fd != sender_fd && FD_ISSET(it->fd, read_fds))
-		if (FD_ISSET(it->fd, read_fds))
+		if (it->fd != sender_fd && FD_ISSET(it->fd, master_fds))
 			ft_send(it->fd, mess, strlen(mess));
 		it = it->next;
 	}
@@ -119,12 +118,15 @@ t_client* malloc_client(int fd)
 		exit_fatal();
 	result->id = g_id++;
 	result->fd = fd;
+	result->data = NULL;
 	result->next = NULL;
 	return result;
 }
 
 void free_client(t_client *to_free)
 {
+	if (to_free->data)
+		free(to_free->data);
 	free(to_free);
 }
 
@@ -177,7 +179,7 @@ void remove_client(int id)
 
 void run()
 {
-	char buffer[100];
+	char buffer[1000];
 	fd_set master_set, read_set;
 	FD_ZERO(&master_set);
 	FD_SET(server_fd, &master_set);
@@ -199,8 +201,9 @@ void run()
 		{
 			if (FD_ISSET(it->fd, &read_set))
 			{
-				char  buf[10];
-				int rc =  recv(it->fd,&buf, 9, 0);
+				int rc =  recv(it->fd,&buffer, sizeof(buffer) - 1, 0);
+				buffer[rc] = 0;
+				it->data = str_join(it->data, buffer);
 				if (rc == 0)
 				{
 					sprintf(buffer, "server: client %d just left\n", it->id);
@@ -214,7 +217,19 @@ void run()
 				}
 				else if (rc > 0)
 				{
-					
+					char *extracted = NULL;
+					while (extract_message(&(it->data), &extracted))
+					{
+						char *to_send = malloc(100 + strlen(extracted));
+						if (!to_send)
+							exit_fatal();
+						sprintf(to_send, "client %d: %s", it->id, extracted);
+						broadcast_message(to_send, &master_set, it->fd);
+						free(to_send);
+						free(extracted);
+						extracted = 0;
+					}
+					free(extracted);
 				}
 				else
 					exit_fatal();
