@@ -69,7 +69,7 @@ typedef struct  s_client
 {
 	int id;
 	int fd;
-	char *data;
+	char *data_in;
 	struct s_client *next;
 } t_client;
 
@@ -83,32 +83,22 @@ void exit_fatal()
 	exit(1);
 }
 
-int ft_send(int fd, char* buffer, int len)
-{
-	int total = 0;
-	int left = len;
-
-	while (total < len)
-	{
-		int n = send(fd, buffer + total, left, 0);
-		if (n == -1)
-		{
-			const char *err = "error send() in sendall\n";
-			write(2, err, strlen(err));
-			return -1;
-		}
-		total += n;
-		left -= n;
-	}
-	return 0;
-}
 void broadcast_message(char *mess, fd_set *master_fds, int sender_fd)
 {
 	t_client* it = clients;
 	while(it)
 	{
 		if (it->fd != sender_fd && FD_ISSET(it->fd, master_fds))
-			ft_send(it->fd, mess, strlen(mess));
+		{
+			int len =  strlen(mess);
+			int n = send(it->fd, mess, len, 0);
+			if (n != len)
+			{
+				const char *err = "error send()\n"; // to test moulinette if...
+				write(2, err, strlen(err));
+				exit(42);
+			}
+		}
 		it = it->next;
 	}
 }
@@ -120,37 +110,21 @@ t_client* malloc_client(int fd)
 	result = malloc(sizeof(t_client));
 	if (!result)
 	{
-		printf("malloc_client\n");
 		exit_fatal();
 	}
 	result->id = g_id++;
 	result->fd = fd;
-	result->data = NULL;
+	result->data_in = NULL;
 	result->next = NULL;
 	return result;
 }
 
 void free_client(t_client *to_free)
 {
-	if (to_free->data)
-		free(to_free->data);
+	if (to_free->data_in)
+		free(to_free->data_in);
 	free(to_free);
 }
-
-
-int count_clients()
-{
-	int i = 0 ;
-	t_client *it = clients;
-	while (it)
-	{
-		i++;
-		it = it->next;
-	}
-
-	return i;
-}
-
 
 t_client* add_client()
 {
@@ -171,7 +145,6 @@ t_client* add_client()
 	}
 	else
 		clients = new_client;
-	printf("add client() -> %d\n", count_clients());
 	return new_client;
 }
 
@@ -181,7 +154,6 @@ void remove_client(int id)
 	t_client* tmp = 0;
 	t_client* it = clients;
 
-	printf("remove_client() -> %d\n", count_clients());
 	while (it)
 	{
 		if (it->id == id)
@@ -196,8 +168,6 @@ void remove_client(int id)
 		tmp = it;
 		it = it->next;
 	}
-	printf("remove_client() -> client not found\n");
-	exit_fatal();
 }
 
 void run()
@@ -209,13 +179,9 @@ void run()
 
 	while (1)
 	{
-		memcpy(&read_set, &master_set, sizeof(master_set));
+		FD_COPY(&master_set, &read_set);
 		if (select(1024, &read_set, 0, 0, 0) < 0)
-		{
-			printf("select \n");
-			printf("%s\n", strerror(errno));
 			exit_fatal();
-		}
 		if (FD_ISSET(server_fd, &read_set))
 		{
 			t_client *new_client = add_client();
@@ -229,9 +195,7 @@ void run()
 			if (FD_ISSET(it->fd, &read_set))
 			{
 				int rc =  recv(it->fd,&buffer, sizeof(buffer) - 1, 0);
-				buffer[rc] = 0;
-				it->data = str_join(it->data, buffer);
-				if (rc == 0)
+				if (rc <= 0)
 				{
 					sprintf(buffer, "server: client %d just left\n", it->id);
 					broadcast_message(buffer, &master_set, it->fd);				
@@ -244,27 +208,20 @@ void run()
 				}
 				else if (rc > 0)
 				{
+					buffer[rc] = 0;
+					it->data_in = str_join(it->data_in, buffer);
 					char *extracted = NULL;
-					while (extract_message(&(it->data), &extracted))
+					while (extract_message(&(it->data_in), &extracted))
 					{
 						char *to_send = malloc(100 + strlen(extracted));
 						if (!to_send)
-						{
-							printf("malloc to_send\n");
 							exit_fatal();
-						}
 						sprintf(to_send, "client %d: %s", it->id, extracted);
 						broadcast_message(to_send, &master_set, it->fd);
 						free(to_send);
 						free(extracted);
 						extracted = 0;
 					}
-				}
-				else
-				{
-					printf("recv (nb_clients:%d)\n", count_clients());
-					printf("%d | %s\n", errno, strerror(errno));
-					// exit_fatal();
 				}
 			}
 			it = it->next;
