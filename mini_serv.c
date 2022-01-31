@@ -9,6 +9,9 @@
 
 #include <stdio.h>
 
+
+#include <errno.h>
+
 // given code
 
 int extract_message(char **buf, char **msg)
@@ -90,7 +93,8 @@ int ft_send(int fd, char* buffer, int len)
 		int n = send(fd, buffer + total, left, 0);
 		if (n == -1)
 		{
-			printf("error send() in sendall\n");
+			const char *err = "error send() in sendall\n";
+			write(2, err, strlen(err));
 			return -1;
 		}
 		total += n;
@@ -115,7 +119,10 @@ t_client* malloc_client(int fd)
 
 	result = malloc(sizeof(t_client));
 	if (!result)
+	{
+		printf("malloc_client\n");
 		exit_fatal();
+	}
 	result->id = g_id++;
 	result->fd = fd;
 	result->data = NULL;
@@ -130,10 +137,25 @@ void free_client(t_client *to_free)
 	free(to_free);
 }
 
+
+int count_clients()
+{
+	int i = 0 ;
+	t_client *it = clients;
+	while (it)
+	{
+		i++;
+		it = it->next;
+	}
+
+	return i;
+}
+
+
 t_client* add_client()
 {
 	int client_fd;
-	
+
 	client_fd = accept(server_fd, 0, 0);
 	if (client_fd < 0)
 		exit_fatal();	
@@ -149,14 +171,17 @@ t_client* add_client()
 	}
 	else
 		clients = new_client;
+	printf("add client() -> %d\n", count_clients());
 	return new_client;
 }
+
 
 void remove_client(int id)
 {
 	t_client* tmp = 0;
 	t_client* it = clients;
 
+	printf("remove_client() -> %d\n", count_clients());
 	while (it)
 	{
 		if (it->id == id)
@@ -186,7 +211,11 @@ void run()
 	{
 		memcpy(&read_set, &master_set, sizeof(master_set));
 		if (select(1024, &read_set, 0, 0, 0) < 0)
+		{
+			printf("select \n");
+			printf("%s\n", strerror(errno));
 			exit_fatal();
+		}
 		if (FD_ISSET(server_fd, &read_set))
 		{
 			t_client *new_client = add_client();
@@ -220,21 +249,26 @@ void run()
 					{
 						char *to_send = malloc(100 + strlen(extracted));
 						if (!to_send)
+						{
+							printf("malloc to_send\n");
 							exit_fatal();
+						}
 						sprintf(to_send, "client %d: %s", it->id, extracted);
 						broadcast_message(to_send, &master_set, it->fd);
 						free(to_send);
 						free(extracted);
 						extracted = 0;
 					}
-					free(extracted);
 				}
 				else
-					exit_fatal();
+				{
+					printf("recv (nb_clients:%d)\n", count_clients());
+					printf("%d | %s\n", errno, strerror(errno));
+					// exit_fatal();
+				}
 			}
 			it = it->next;
 		}
-		printf("server\n");
 	}
 }
 
@@ -266,7 +300,7 @@ int main(int ac, char **av)
 		close(server_fd);
 		exit_fatal();
 	}
-	if (listen(server_fd, 10) != 0) // 10 is the value given in the main
+	if (listen(server_fd, 0) != 0) // 10 is the value given in the main
 		exit_fatal();
 	run();
 }
