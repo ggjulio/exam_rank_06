@@ -179,6 +179,7 @@ void run()
 		{
 		  sprintf(buffer, "server: client %d just left\n", it->id);
 		  broadcast_message(buffer, &master_set, it->fd);
+		  close(it->fd);
 		  FD_CLR(it->fd, &master_set);
 		  it = remove_client(it->id);
 		  continue;
@@ -191,6 +192,8 @@ void run()
 		  while (extract_message(&(it->data), &extracted))
 		    {
 		      char *to_send = malloc(100 + strlen(extracted));
+		      if (!to_send)
+			exit_fatal();
 		      sprintf(to_send, "client %d: %s", it->id, extracted);
 		      broadcast_message(to_send, &master_set, it->fd);
 		      free(to_send);
