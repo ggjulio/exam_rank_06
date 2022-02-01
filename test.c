@@ -214,7 +214,7 @@ int main(int ac, char **av) {
     {
       const char* err = "Wrong number of arguments\n";
       write(2,err, strlen(err));
-      exit_fatal();
+      exit(1);
     }
   
   struct sockaddr_in servaddr; 
