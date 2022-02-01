@@ -74,6 +74,22 @@ void exit_fatal()
   exit(1);
 }
 
+void broadcast_message(char *mess, fd_set *master_set, int sender_fd)
+{
+  t_client* it = clients;
+  while (it)
+    {
+      if (it->fd != sender_fd && FD_ISSET(it->fd, master_set))
+	{
+	  int len = strlen(mess);
+	  int n = send(it->fd, mess, len, 0);
+	  if (n != len)
+	    exit(42);
+	}
+      it = it->next;
+    }
+}
+
 t_client* malloc_client(int fd)
 {
   t_client* result = malloc(sizeof(t_client));
@@ -92,22 +108,6 @@ void free_client(t_client* to_free)
   if (to_free->data)
     free(to_free->data);
   free(to_free);
-}
-
-void broadcast_message(char *mess, fd_set *master_set, int sender_fd)
-{
-  t_client* it = clients;
-  while (it)
-    {
-      if (it->fd != sender_fd && FD_ISSET(it->fd, master_set))
-	{
-	  int len = strlen(mess);
-	  int n = send(it->fd, mess, len, 0);
-	  if (n != len)
-	    exit(42);
-	}
-      it = it->next;
-    }
 }
 
 t_client* add_client()

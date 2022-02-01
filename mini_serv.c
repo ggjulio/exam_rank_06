@@ -190,7 +190,7 @@ void run()
 		{
 			if (FD_ISSET(it->fd, &read_set))
 			{
-				int rc =  recv(it->fd,&buffer, sizeof(buffer) - 1, 0);
+				int rc =  recv(it->fd, buffer, sizeof(buffer) - 1, 0);
 				if (rc <= 0)
 				{
 					sprintf(buffer, "server: client %d just left\n", it->id);
