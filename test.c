@@ -233,8 +233,14 @@ int main(int ac, char **av) {
   
   // Binding newly created socket to given IP and verification 
   if ((bind(server_fd, (const struct sockaddr *)&servaddr, sizeof(servaddr))) != 0)
-    exit_fatal();
+    {
+      close(server_fd);
+      exit_fatal();
+    }
   if (listen(server_fd, 10) != 0)
-    exit_fatal();
+    {
+      close(server_fd);
+      exit_fatal();
+    }
   run();
 }
