@@ -109,9 +109,7 @@ t_client* malloc_client(int fd)
 
 	result = malloc(sizeof(t_client));
 	if (!result)
-	{
 		exit_fatal();
-	}
 	result->id = g_id++;
 	result->fd = fd;
 	result->data_in = NULL;
@@ -134,8 +132,6 @@ t_client* add_client()
 	if (client_fd < 0)
 		exit_fatal();	
 	t_client* new_client = malloc_client(client_fd);
-	if (!new_client)
-		exit_fatal();
 	t_client* it = clients;
 	if (it)
 	{
@@ -148,8 +144,7 @@ t_client* add_client()
 	return new_client;
 }
 
-
-void remove_client(int id)
+t_client* remove_client(int id)
 {
 	t_client* tmp = 0;
 	t_client* it = clients;
@@ -163,11 +158,12 @@ void remove_client(int id)
 			else
 				clients = it->next;
 			free_client(it);
-			return;
+			return tmp ? tmp->next : clients; // return the next client after the one removed
 		}
 		tmp = it;
 		it = it->next;
 	}
+	return NULL;
 }
 
 void run()
@@ -201,9 +197,7 @@ void run()
 					broadcast_message(buffer, &master_set, it->fd);				
 					close(it->fd);
 					FD_CLR(it->fd, &master_set);
-					t_client *tmp = it->next;
-					remove_client(it->id);
-					it = tmp;
+					it = remove_client(it->id);
 					continue;
 				}
 				else if (rc > 0)
